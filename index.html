@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>X-MOBILITY 复现进度看板</title>
+<style>
+  :root{
+    /* 暖色米白 */
+    --bg:#faf6f0; --bg2:#f5efe6; --panel:#fffdf9; --panel2:#f8f2e9;
+    --line:#e8ddd0; --line2:#dfd2c2;
+    --tx:#3d3428; --tx2:#7d6f5d; --tx3:#a3937f;
+    --done:#4d8b5f; --doing:#c07a3e; --todo:#b3a595;
+    --blocked:#c9903a; --skip:#b3a595;
+    --accent:#a8672f;
+    --code-bg:#2d2620; --code-tx:#e8ddd0;
+    --shadow:0 1px 3px rgba(120,95,70,.07),0 4px 14px rgba(120,95,70,.05);
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--tx);
+    font:14.5px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;
+    padding:0 0 64px;
+  }
+  .wrap{max-width:1200px;margin:0 auto;padding:0 22px}
+
+  header{
+    background:linear-gradient(170deg,#fffdf9 0%,#f7f0e6 100%);
+    border-bottom:1px solid var(--line); padding:28px 0 24px; margin-bottom:26px;
+  }
+  h1{margin:0 0 6px;font-size:23px;letter-spacing:.2px;color:#4a3f30}
+  h1 .sub{font-size:13.5px;color:var(--tx3);font-weight:400;margin-left:10px}
+  .meta{display:flex;flex-wrap:wrap;gap:8px 22px;font-size:13px;color:var(--tx2);margin-top:11px}
+  .meta b{color:var(--tx);font-weight:600}
+
+  .card{
+    background:var(--panel);border:1px solid var(--line);border-radius:13px;
+    padding:19px 21px;box-shadow:var(--shadow);
+  }
+  .card h2{margin:0 0 15px;font-size:13px;color:var(--tx3);font-weight:700;
+    text-transform:uppercase;letter-spacing:1.1px}
+  .hero{display:grid;grid-template-columns:1.28fr 1fr;gap:18px;margin-bottom:28px}
+  @media(max-width:820px){.hero{grid-template-columns:1fr}}
+  .big{font-size:35px;font-weight:700;line-height:1;color:#4a3f30}
+  .big small{font-size:15px;color:var(--tx3);font-weight:400}
+
+  .bar{height:11px;background:#efe7db;border-radius:6px;overflow:hidden;margin:13px 0 7px;
+    border:1px solid #e6dbcc}
+  .bar>i{display:block;height:100%;border-radius:6px;transition:width .6s ease}
+  .bar-lbl{display:flex;justify-content:space-between;font-size:12.5px;color:var(--tx2)}
+
+  .seg{display:flex;gap:4px;margin:13px 0 9px}
+  .seg>i{flex:1;height:23px;border-radius:5px;cursor:help;transition:transform .15s}
+  .seg>i:hover{transform:scaleY(1.18)}
+  .seg-legend{display:flex;gap:17px;font-size:12.5px;color:var(--tx2);flex-wrap:wrap}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;
+    vertical-align:middle}
+
+  .s-done{background:var(--done)} .s-doing{background:var(--doing)}
+  .s-todo{background:var(--todo)} .s-blocked{background:var(--blocked)}
+  .s-skip{background:var(--skip)}
+
+  .badge{display:inline-block;font-size:12px;padding:2.5px 10px;border-radius:20px;
+    font-weight:600;white-space:nowrap}
+  .b-done{background:#e4efe4;color:#376b45}
+  .b-doing{background:#f8e8d5;color:#94581f}
+  .b-todo{background:#efe7db;color:#7d6f5d}
+  .b-blocked{background:#f7ecd6;color:#8f6317}
+  .b-skip{background:#efeae2;color:#8a7d6c}
+
+  .step{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    margin-bottom:10px;overflow:hidden;box-shadow:var(--shadow)}
+  .step-hd{display:flex;align-items:center;gap:14px;padding:14px 18px;cursor:pointer;
+    user-select:none;transition:background .15s}
+  .step-hd:hover{background:var(--panel2)}
+  .sid{font-family:ui-monospace,Consolas,monospace;font-size:12.5px;font-weight:700;
+    color:var(--accent);min-width:34px}
+  .stitle{flex:1;font-size:15px;font-weight:600;color:#4a3f30}
+  .mini{width:82px;height:7px;background:#efe7db;border-radius:4px;overflow:hidden;flex-shrink:0}
+  .mini>i{display:block;height:100%}
+  .ssteps{font-size:12px;color:var(--tx3);font-family:ui-monospace,monospace;
+    min-width:42px;text-align:right}
+  .chev{color:var(--tx3);transition:transform .22s;font-size:11px}
+  .step.open .chev{transform:rotate(90deg)}
+
+  .step-bd{display:none;padding:6px 18px 20px 64px;border-top:1px solid var(--line)}
+  .step.open .step-bd{display:block}
+  .blk{margin:15px 0}
+  .blk-t{font-size:12px;color:var(--tx3);font-weight:700;letter-spacing:.7px;
+    text-transform:uppercase;margin-bottom:8px}
+  .blk p{margin:0 0 7px}
+  ul{margin:0;padding-left:20px} li{margin:5px 0}
+  li::marker{color:var(--line2)}
+  .now{background:#fdf6ea;border-left:3px solid var(--doing);
+    padding:10px 14px;border-radius:0 8px 8px 0;margin:12px 0}
+  .warn{background:#fdf4e4;border-left:3px solid var(--blocked);
+    padding:10px 14px;border-radius:0 8px 8px 0;margin:12px 0;font-size:13.5px;
+    white-space:pre-wrap;color:#6b5228}
+  .ev{font-size:12.5px;color:var(--tx2);font-family:ui-monospace,Consolas,monospace;
+    background:var(--bg2);padding:8px 12px;border-radius:7px;margin-top:9px;
+    word-break:break-all;border:1px solid var(--line)}
+
+  .tabs{display:flex;gap:5px;margin:22px 0 0;border-bottom:1px solid var(--line);
+    flex-wrap:wrap}
+  .tab{padding:9px 17px;font-size:13.5px;color:var(--tx2);cursor:pointer;
+    border:1px solid transparent;border-bottom:none;border-radius:9px 9px 0 0;
+    font-weight:600;transition:all .15s;background:transparent;font-family:inherit}
+  .tab:hover{color:var(--tx);background:var(--panel2)}
+  .tab.on{background:var(--panel);color:var(--accent);border-color:var(--line);
+    margin-bottom:-1px;padding-bottom:10px}
+  .pane{display:none;padding-top:22px}
+  .pane.on{display:block}
+
+  table{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:10px}
+  th,td{padding:9px 11px;text-align:left;border-bottom:1px solid var(--line)}
+  th{color:var(--tx3);font-weight:700;font-size:12px;text-transform:uppercase;
+    letter-spacing:.6px;background:var(--panel2)}
+  tr:last-child td{border-bottom:none}
+  tbody tr:hover{background:var(--panel2)}
+  td.num{font-family:ui-monospace,Consolas,monospace;text-align:right}
+  tr.hl td{background:#fdf6ea}
+
+  .code-item{border:1px solid var(--line);border-radius:11px;margin-bottom:12px;
+    overflow:hidden;background:var(--panel);box-shadow:var(--shadow)}
+  .code-hd{padding:13px 17px;cursor:pointer;display:flex;align-items:center;gap:12px;
+    transition:background .15s}
+  .code-hd:hover{background:var(--panel2)}
+  .code-title{flex:1;font-weight:600;color:#4a3f30;font-size:14.5px}
+  .code-meta{font-size:12px;color:var(--tx3);font-family:ui-monospace,monospace}
+  .code-bd{display:none;border-top:1px solid var(--line)}
+  .code-item.open .code-bd{display:block}
+  .code-item.open .chev{transform:rotate(90deg)}
+  .code-desc{padding:13px 17px 4px;font-size:13.5px;color:var(--tx2)}
+  pre{
+    margin:0;padding:16px 18px;background:var(--code-bg);color:var(--code-tx);
+    overflow-x:auto;font-size:12.8px;line-height:1.62;
+    font-family:ui-monospace,Consolas,"Cascadia Code",monospace;
+  }
+  pre .k{color:#e8b96a}
+  pre .s{color:#a8c98a}
+  pre .c{color:#8a7d6c;font-style:italic}
+  pre .n{color:#d9a066}
+  pre .f{color:#9ecfd0}
+  .code-foot{padding:9px 17px;background:var(--panel2);border-top:1px solid var(--line);
+    display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+  .copybtn{font-size:12.5px;padding:5px 13px;border-radius:7px;cursor:pointer;
+    border:1px solid var(--line2);background:var(--panel);color:var(--tx2);
+    font-family:inherit;font-weight:600;transition:all .15s}
+  .copybtn:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .code-path{font-family:ui-monospace,Consolas,monospace;font-size:12px;color:var(--tx3)}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:780px){.grid2{grid-template-columns:1fr}}
+  .tag{display:inline-block;font-size:11.5px;padding:2px 8px;border-radius:5px;
+    background:#f3e7d8;color:var(--accent);margin-right:6px;font-weight:700;
+    letter-spacing:.3px}
+  .muted{color:var(--tx3);font-size:13px}
+  footer{margin-top:36px;padding-top:20px;border-top:1px solid var(--line);
+    color:var(--tx3);font-size:12.5px}
+  code{background:var(--bg2);padding:2px 7px;border-radius:5px;font-size:12.5px;
+    font-family:ui-monospace,Consolas,monospace;border:1px solid var(--line);
+    color:#6b5228}
+  .sec-t{font-size:17px;font-weight:700;margin:32px 0 15px;padding-bottom:9px;
+    border-bottom:1px solid var(--line);color:#4a3f30}
+  .risk{display:flex;gap:13px;align-items:flex-start;padding:11px 0;
+    border-bottom:1px solid var(--line)}
+  .risk:last-child{border-bottom:none}
+  .pill{font-size:11px;padding:2.5px 9px;border-radius:6px;font-weight:700;
+    flex-shrink:0;margin-top:2px}
+  .p-high{background:#f7ded8;color:#9c3d2a}
+  .p-mid{background:#f8e8d5;color:#94581f}
+  .p-low{background:#efeae2;color:#8a7d6c}
+  .toggle-btn{font-size:12.5px;padding:5px 12px;border-radius:7px;cursor:pointer;
+    border:1px solid var(--line2);background:var(--panel);color:var(--tx2);
+    font-family:inherit;font-weight:600;margin-right:7px}
+  .toggle-btn:hover{background:var(--panel2)}
+
+  /* ---------- 二级：小步 ---------- */
+  .subs-head{display:flex;align-items:center;gap:10px;margin:16px 0 9px}
+  .subs-head .blk-t{margin:0}
+  .subs-prog{flex:1;max-width:190px;height:6px;background:#efe7db;border-radius:3px;
+    overflow:hidden}
+  .subs-prog>i{display:block;height:100%}
+  .subs-cnt{font-size:12px;color:var(--tx3);font-family:ui-monospace,monospace}
+
+  .sub{border:1px solid var(--line);border-radius:9px;margin-bottom:7px;
+    background:var(--panel);overflow:hidden}
+  .sub-hd{display:flex;align-items:center;gap:11px;padding:10px 13px;cursor:pointer;
+    transition:background .15s}
+  .sub-hd:hover{background:var(--panel2)}
+  .sub-mark{width:15px;height:15px;border-radius:4px;flex-shrink:0;position:relative;
+    border:1.5px solid var(--line2)}
+  .sub-mark.s-done{background:var(--done);border-color:var(--done)}
+  .sub-mark.s-done::after{content:'✓';position:absolute;inset:0;color:#fff;
+    font-size:11px;line-height:13px;text-align:center;font-weight:700}
+  .sub-mark.s-doing{background:#fdf6ea;border-color:var(--doing)}
+  .sub-mark.s-doing::after{content:'';position:absolute;width:7px;height:7px;
+    border-radius:50%;background:var(--doing);left:2px;top:2px}
+  .sub-mark.s-blocked{background:#fdf4e4;border-color:var(--blocked)}
+  .sub-mark.s-blocked::after{content:'!';position:absolute;inset:0;color:var(--blocked);
+    font-size:11px;line-height:13px;text-align:center;font-weight:700}
+  .sub-id{font-family:ui-monospace,Consolas,monospace;font-size:11.5px;
+    color:var(--tx3);min-width:42px}
+  .sub-title{flex:1;font-size:13.5px;font-weight:600;color:#4a3f30}
+  .sub-badge{font-size:11px;padding:1.5px 8px;border-radius:12px;font-weight:600;
+    white-space:nowrap}
+  .sub-chev{color:var(--tx3);font-size:10px;transition:transform .2s}
+  .sub.open .sub-chev{transform:rotate(90deg)}
+
+  .sub-bd{display:none;padding:3px 13px 14px 51px;border-top:1px solid var(--line);
+    background:var(--panel2)}
+  .sub.open .sub-bd{display:block}
+  .sub-bd .blk{margin:11px 0}
+  .sub-bd .blk-t{font-size:11px}
+  .sub-bd p,.sub-bd li{font-size:13px}
+  .sub-now{background:#fdf6ea;border-left:3px solid var(--doing);padding:8px 12px;
+    border-radius:0 7px 7px 0;margin:10px 0;font-size:13px}
+  .sub-warn{background:#fdf4e4;border-left:3px solid var(--blocked);padding:8px 12px;
+    border-radius:0 7px 7px 0;margin:10px 0;font-size:12.5px;
+    white-space:pre-wrap;color:#6b5228}
+  .sub-ev{font-size:11.5px;color:var(--tx2);font-family:ui-monospace,Consolas,monospace;
+    background:var(--panel);padding:6px 10px;border-radius:6px;margin-top:8px;
+    word-break:break-all;border:1px solid var(--line)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+  <div style="margin:18px 0 0;padding:11px 16px;background:#fdf6ea;border:1px solid #e8ddd0;border-left:3px solid #c07a3e;border-radius:0 8px 8px 0;font-size:13px;color:#6b5228">
+    <b>X-MOBILITY 复现进度看板</b> · 数据来自 A40 工作站实机巡检，更新后刷新页面即可看到最新。
+  </div>
+    <h1>X-MOBILITY 复现进度看板<span class="sub" id="m-paper"></span></h1>
+    <div class="meta" id="m-meta"></div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="hero">
+    <div class="card">
+      <h2>甲层交付物进度（本阶段考卷）</h2>
+      <div class="big"><span id="dl-done">–</span><small> / <span id="dl-total">–</span> 项已完成</small></div>
+      <div class="bar"><i id="dl-bar" class="s-done" style="width:0%"></i></div>
+      <div class="bar-lbl"><span>已完成项数</span><span id="dl-pct">–</span></div>
+      <div class="seg" id="seg"></div>
+      <div class="seg-legend">
+        <span><i class="dot s-done"></i>已完成</span>
+        <span><i class="dot s-doing"></i>进行中</span>
+        <span><i class="dot s-blocked"></i>受阻</span>
+        <span><i class="dot s-todo"></i>未开始</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>得分与阶段一训练</h2>
+      <div class="big" style="color:#376b45"><span id="score">–</span><small> / <span id="scoremax">–</span> 分</small></div>
+      <div class="bar"><i id="score-bar" class="s-done" style="width:0%"></i></div>
+      <div class="bar-lbl"><span>预计得分</span><span id="score-pct">–</span></div>
+
+      <div style="margin-top:19px;padding-top:15px;border-top:1px solid var(--line)">
+        <h2 style="margin-bottom:10px">阶段一训练（S1）</h2>
+        <div class="bar"><i id="s1-bar" class="s-doing" style="width:0%"></i></div>
+        <div class="bar-lbl"><span id="s1-step">–</span><span id="s1-pct">–</span></div>
+        <div class="muted" style="margin-top:9px" id="s1-eta"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab on" data-p="steps">执行步骤</button>
+    <button class="tab" data-p="code">代码预览</button>
+    <button class="tab" data-p="dl">交付物明细</button>
+    <button class="tab" data-p="num">数字对照</button>
+    <button class="tab" data-p="misc">额外产出 / 偏离 / 风险</button>
+  </div>
+
+  <div class="pane on" id="p-steps">
+    <div class="muted" style="margin-bottom:12px">
+      点开任意步骤可查看：做什么 · 为什么 · 怎么执行 · 现在到哪了 · 证据。
+      进行中与受阻的默认展开。
+    </div>
+    <div id="steps"></div>
+  </div>
+
+  <div class="pane" id="p-code">
+    <div class="muted" style="margin-bottom:12px">
+      这些是我们自己写的关键实现，用于说明"当时具体怎么做的"。
+      点开查看代码，右下角可复制。<span id="code-count"></span>
+    </div>
+    <div style="margin-bottom:14px">
+      <button class="toggle-btn" id="expand-all-code">全部展开</button>
+      <button class="toggle-btn" id="collapse-all-code">全部收起</button>
+    </div>
+    <div id="codes"></div>
+  </div>
+
+  <div class="pane" id="p-dl">
+    <div class="card" style="padding:6px 21px 19px">
+      <table>
+        <thead><tr>
+          <th style="width:92px">项</th><th>内容</th><th style="width:74px">状态</th>
+          <th style="width:80px">得分</th><th>实测结果 / 说明</th>
+        </tr></thead>
+        <tbody id="dl-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="pane" id="p-num"><div id="cmp"></div></div>
+
+  <div class="pane" id="p-misc">
+    <div class="grid2">
+      <div class="card">
+        <h2>额外产出（不计入 90 分）</h2>
+        <div id="extras"></div>
+      </div>
+      <div class="card">
+        <h2>已知偏离项（报告须标注）</h2>
+        <div id="devs"></div>
+      </div>
+    </div>
+    <div class="sec-t">风险登记</div>
+    <div class="card" id="risks" style="padding:7px 21px"></div>
+  </div>
+
+  <footer>
+    <div id="pub-line"></div>
+    <div>数据源：<code>00_计划与门禁/进度数据.js</code> —— 完成任务后更新它，
+      再运行 <code>node build_dashboard.js</code> 重新生成本页。</div>
+    <div style="margin-top:7px">计划书原文：<code>00_计划与门禁/复现项目执行计划书_20261012.md</code>　|　
+      更新时间：<b id="f-upd">–</b></div>
+    <div style="margin-top:7px" class="muted">
+      状态口径：done=已完成（有证据）· doing=进行中 · blocked=受阻（需外部条件）·
+      todo=未开始 · skip=不属于本阶段
+    </div>
+  </footer>
+</div>
+
+<script src="progress-data.js"></script>
+<script>
+  var PROGRESS = window.__EMBEDDED_PROGRESS__ || window.PROGRESS_DATA || null;
+</script>
+<script>
+(function(){
+  const P = (typeof PROGRESS !== 'undefined' && PROGRESS) ? PROGRESS : null;
+  if (!P) {
+    document.querySelector('.wrap').innerHTML =
+      '<div class="card" style="border-color:#c0533f;color:#9c3d2a;margin-top:30px">' +
+      '<b>数据未加载</b><br>请在 <code>00_计划与门禁/</code> 目录下运行 ' +
+      '<code>node build_dashboard.js</code> 重新生成此文件。</div>';
+    return;
+  }
+
+  const ST = {
+    done:   {txt:'已完成',  cls:'b-done',    dot:'s-done'},
+    doing:  {txt:'进行中',  cls:'b-doing',   dot:'s-doing'},
+    todo:   {txt:'未开始',  cls:'b-todo',    dot:'s-todo'},
+    blocked:{txt:'受阻',    cls:'b-blocked', dot:'s-blocked'},
+    skip:   {txt:'本阶段外',cls:'b-skip',    dot:'s-skip'},
+  };
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  const md = s => esc(s)
+      .replace(/\*\*(.+?)\*\*/g,'<b>$1</b>')
+      .replace(/`(.+?)`/g,'<code>$1</code>')
+      .replace(/\n/g,'<br>');
+
+  const m = P.meta;
+  $('#m-paper').textContent = P.meta.paper;
+  $('#f-upd').textContent = m.updated;
+
+  // 发布地址（若有）：本地版与发布版都显示，方便转发
+  if (m.publishUrl) {
+    $('#pub-line').innerHTML =
+      '<div style="margin-bottom:10px;padding:10px 14px;background:#fdf6ea;' +
+      'border:1px solid var(--line);border-left:3px solid var(--accent);' +
+      'border-radius:0 8px 8px 0">' +
+      '<b>在线看板</b>（可直接转发）：<a href="' + esc(m.publishUrl) + '" ' +
+      'target="_blank" rel="noopener" style="color:var(--accent);font-weight:600">' +
+      esc(m.publishUrl) + '</a></div>';
+  }
+  $('#m-meta').innerHTML = [
+    ['更新时间', m.updated],
+    ['阶段一', 'step ' + m.stage1Step.toLocaleString() + ' / ' + m.stage1Total.toLocaleString()],
+    ['速度', m.stage1Speed],
+    ['GPU', m.gpu],
+    ['磁盘', m.diskFree],
+  ].map(function(kv){ return '<span>' + kv[0] + '：<b>' + esc(kv[1]) + '</b></span>'; }).join('');
+
+  const dls = P.deliverables;
+  const done = dls.filter(function(d){return d.status === 'done';}).length;
+  const tot = dls.length;
+  $('#dl-done').textContent = done;
+  $('#dl-total').textContent = tot;
+  const pct = Math.round(done / tot * 100);
+  $('#dl-bar').style.width = pct + '%';
+  $('#dl-pct').textContent = pct + '%';
+  $('#seg').innerHTML = dls.map(function(d){
+    const st = ST[d.status] || ST.todo;
+    return '<i class="' + st.dot + '" title="' + esc(d.type) + ' ' + esc(d.title) +
+           ' — ' + st.txt + '"></i>';
+  }).join('');
+
+  const smax = m.scoreMax, snow = m.scoreNow;
+  $('#score').textContent = snow;
+  $('#scoremax').textContent = smax;
+  $('#score-bar').style.width = Math.round(snow/smax*100) + '%';
+  $('#score-pct').textContent = Math.round(snow/smax*100) + '%';
+
+  const s1p = m.stage1Step / m.stage1Total * 100;
+  $('#s1-bar').style.width = s1p.toFixed(1) + '%';
+  $('#s1-step').textContent = m.stage1Step.toLocaleString() + ' / ' + m.stage1Total.toLocaleString() + ' 步';
+  $('#s1-pct').textContent = s1p.toFixed(1) + '%';
+  $('#s1-eta').innerHTML = '已跑 <b>' + esc(m.stage1Elapsed) + '</b>　|　剩余 <b>' +
+    esc(m.stage1EtaText) + '</b>　|　守护 PID <b>' + esc(m.guardPid) + '</b>';
+
+  document.querySelectorAll('.tab').forEach(function(t){
+    t.addEventListener('click', function(){
+      document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('on');});
+      document.querySelectorAll('.pane').forEach(function(x){x.classList.remove('on');});
+      t.classList.add('on');
+      $('#p-' + t.dataset.p).classList.add('on');
+    });
+  });
+
+  const snips = P.codeSnippets || [];
+
+  /* 渲染一个小步 */
+  function renderSub(sb, sid){
+    const st = ST[sb.status] || ST.todo;
+    const open = (sb.status === 'doing' || sb.status === 'blocked') ? ' open' : '';
+    return '<div class="sub' + open + '">' +
+      '<div class="sub-hd">' +
+        '<span class="sub-mark ' + st.dot + '"></span>' +
+        '<span class="sub-id">' + esc(sb.id) + '</span>' +
+        '<span class="sub-title">' + esc(sb.title) + '</span>' +
+        '<span class="sub-badge ' + st.cls + '">' + st.txt + '</span>' +
+        '<span class="sub-chev">▶</span>' +
+      '</div>' +
+      '<div class="sub-bd">' +
+        '<div class="blk"><div class="blk-t">是什么</div><p>' + md(sb.what) + '</p></div>' +
+        '<div class="blk"><div class="blk-t">为什么</div><ul>' +
+          sb.why.map(function(x){return '<li>' + md(x) + '</li>';}).join('') + '</ul></div>' +
+        '<div class="blk"><div class="blk-t">怎么做</div><ul>' +
+          sb.how.map(function(x){return '<li>' + md(x) + '</li>';}).join('') + '</ul></div>' +
+        '<div class="sub-now"><b>状态：</b>' + md(sb.now) + '</div>' +
+        (sb.caveat ? '<div class="sub-warn">⚠️ ' + md(sb.caveat) + '</div>' : '') +
+        (sb.evidence && sb.evidence !== '—'
+          ? '<div class="sub-ev">证据：' + esc(sb.evidence) + '</div>' : '') +
+      '</div></div>';
+  }
+
+  $('#steps').innerHTML = P.steps.map(function(s, i){
+    const st = ST[s.status] || ST.todo;
+    const open = (s.status === 'doing' || s.status === 'blocked') ? ' open' : '';
+    const hasCode = snips.some(function(c){return c.step === s.id;});
+    const subs = s.substeps || [];
+    return '<div class="step' + open + '" data-i="' + i + '">' +
+      '<div class="step-hd">' +
+        '<span class="sid">' + esc(s.id) + '</span>' +
+        '<span class="stitle">' + esc(s.title) + '</span>' +
+        (subs.length ? '<span class="tag" style="margin:0">' + subs.length + ' 小步</span>' : '') +
+        (hasCode ? '<span class="tag" style="margin:0">代码</span>' : '') +
+        '<span class="mini"><i class="' + st.dot + '" style="width:' + s.pct + '%"></i></span>' +
+        '<span class="ssteps">' + s.pct + '%</span>' +
+        '<span class="badge ' + st.cls + '">' + st.txt + '</span>' +
+        '<span class="chev">▶</span>' +
+      '</div>' +
+      '<div class="step-bd">' +
+        '<div class="blk"><div class="blk-t">做什么</div><p>' + md(s.what) + '</p></div>' +
+        '<div class="blk"><div class="blk-t">为什么这么做</div><ul>' +
+          s.why.map(function(x){return '<li>' + md(x) + '</li>';}).join('') + '</ul></div>' +
+        '<div class="blk"><div class="blk-t">计划怎么执行</div><ul>' +
+          s.how.map(function(x){return '<li>' + md(x) + '</li>';}).join('') + '</ul></div>' +
+        '<div class="now"><b>现在到哪了：</b>' + md(s.now) + '</div>' +
+        (s.caveat ? '<div class="warn">⚠️ ' + md(s.caveat) + '</div>' : '') +
+        (s.evidence && s.evidence !== '—'
+          ? '<div class="ev">证据：' + esc(s.evidence) + '</div>' : '') +
+        renderSubs(subs) +
+      '</div></div>';
+  }).join('');
+
+  /* 渲染某阶段的小步列表（含进度条与计数） */
+  function renderSubs(subs){
+    if (!subs.length) return '';
+    const dn = subs.filter(function(x){return x.status === 'done';}).length;
+    const pct = Math.round(dn / subs.length * 100);
+    return '<div class="subs-head">' +
+        '<div class="blk-t">具体小步</div>' +
+        '<span class="subs-prog"><i class="s-done" style="width:' + pct + '%"></i></span>' +
+        '<span class="subs-cnt">' + dn + ' / ' + subs.length + ' 已完成</span>' +
+      '</div>' +
+      subs.map(function(sb){return renderSub(sb);}).join('');
+  }
+
+  document.querySelectorAll('.step-hd').forEach(function(h){
+    h.addEventListener('click', function(){ h.parentElement.classList.toggle('open'); });
+  });
+  // 小步单独展开（点小步头不影响大阶段）
+  document.querySelectorAll('.sub-hd').forEach(function(h){
+    h.addEventListener('click', function(e){
+      e.stopPropagation();
+      h.parentElement.classList.toggle('open');
+    });
+  });
+
+  $('#code-count').textContent = '共 ' + snips.length + ' 段。';
+  $('#codes').innerHTML = snips.map(function(c, i){
+    return '<div class="code-item" data-i="' + i + '">' +
+      '<div class="code-hd">' +
+        '<span class="code-title">' + esc(c.title) + '</span>' +
+        '<span class="tag" style="margin:0">' + esc(c.step) + '</span>' +
+        '<span class="code-meta">' + esc(c.lang) + '</span>' +
+        '<span class="chev">▶</span>' +
+      '</div>' +
+      '<div class="code-bd">' +
+        '<div class="code-desc">' + md(c.desc) + '</div>' +
+        '<pre><code>' + highlight(c.code, c.lang) + '</code></pre>' +
+        '<div class="code-foot">' +
+          '<span class="code-path">' + esc(c.file) + '</span>' +
+          '<button class="copybtn" data-copy="' + i + '">复制代码</button>' +
+        '</div>' +
+      '</div></div>';
+  }).join('');
+
+  document.querySelectorAll('.code-hd').forEach(function(h){
+    h.addEventListener('click', function(){ h.parentElement.classList.toggle('open'); });
+  });
+  $('#expand-all-code').addEventListener('click', function(){
+    document.querySelectorAll('.code-item').forEach(function(x){x.classList.add('open');});
+  });
+  $('#collapse-all-code').addEventListener('click', function(){
+    document.querySelectorAll('.code-item').forEach(function(x){x.classList.remove('open');});
+  });
+
+  document.querySelectorAll('.copybtn').forEach(function(b){
+    b.addEventListener('click', function(){
+      const c = snips[+b.dataset.copy];
+      const doneFn = function(){
+        b.textContent = '已复制 ✓';
+        setTimeout(function(){ b.textContent = '复制代码'; }, 1600);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(c.code).then(doneFn).catch(function(){ fallback(c.code, doneFn); });
+      } else { fallback(c.code, doneFn); }
+    });
+  });
+  function fallback(txt, cb){
+    const ta = document.createElement('textarea');
+    ta.value = txt; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); cb(); } catch(e){ alert('复制失败，请手动选中'); }
+    document.body.removeChild(ta);
+  }
+
+  /* 轻量语法高亮 */
+  function highlight(src, lang){
+    let s = esc(src);
+    if (lang === 'bash') {
+      s = s.replace(/(#[^\n]*)/g, '<span class="c">$1</span>');
+      s = s.replace(/\b(for|do|done|if|then|fi|else|echo|exit|sleep|seq|local|export|unset|return|set)\b/g,
+                    '<span class="k">$1</span>');
+      s = s.replace(/(\$[A-Za-z_][A-Za-z0-9_]*|\$\{[^}]*\}|\$[0-9@#?])/g,
+                    '<span class="n">$1</span>');
+      s = s.replace(/("[^"\n]*")/g, '<span class="s">$1</span>');
+      return s;
+    }
+    s = s.replace(/(#[^\n]*)/g, '<span class="c">$1</span>');
+    s = s.replace(/('[^'\n]*'|"[^"\n]*")/g, '<span class="s">$1</span>');
+    s = s.replace(/\b(def|class|return|if|elif|else|for|while|in|not|and|or|import|from|as|with|try|except|raise|None|True|False|lambda|assert|pass|break|continue|global|yield)\b/g,
+                  '<span class="k">$1</span>');
+    s = s.replace(/\b(\d+\.?\d*(?:e-?\d+)?)\b/g, '<span class="n">$1</span>');
+    s = s.replace(/([A-Za-z_][A-Za-z0-9_]*)(\()/g, '<span class="f">$1</span>$2');
+    return s;
+  }
+
+  $('#dl-body').innerHTML = dls.map(function(d){
+    const st = ST[d.status] || ST.todo;
+    const half = (d.got < d.score);
+    return '<tr>' +
+      '<td><span class="tag">' + esc(d.type) + '</span></td>' +
+      '<td><b>' + esc(d.title) + '</b><br><span class="muted">' + esc(d.summary) + '</span></td>' +
+      '<td><span class="badge ' + st.cls + '">' + st.txt + '</span></td>' +
+      '<td class="num" style="color:' + (half ? '#94581f' : '#376b45') + ';font-weight:700">' +
+        d.got + ' / ' + d.score + '</td>' +
+      '<td>' + md(d.result) +
+        (d.caveat ? '<br><span class="muted">' + md(d.caveat) + '</span>' : '') +
+        (d.note ? '<br><span class="muted">' + md(d.note) + '</span>' : '') +
+      '</td></tr>';
+  }).join('');
+
+  $('#cmp').innerHTML = P.comparisons.map(function(c){
+    const isMAE = c.rows[0].a !== undefined;
+    const head = isMAE
+      ? '<th>来源</th><th class="num">A-MAE ↓</th><th class="num">L-MAE ↓</th><th class="num">P-MAE ↓</th>'
+      : '<th>配置</th><th class="num">P50 (ms)</th><th class="num">P95 (ms)</th><th class="num">峰值显存 (MB)</th>';
+    const body = c.rows.map(function(r){
+      const cls = r.isPaper ? '' : (r.isOurs ? 'hl' : '');
+      const cells = isMAE
+        ? '<td class="num">' + r.a.toFixed(4) + '</td><td class="num">' + r.l.toFixed(4) +
+          '</td><td class="num">' + r.p.toFixed(4) + '</td>'
+        : '<td class="num">' + r.p50.toFixed(2) + '</td><td class="num">' + r.p95.toFixed(2) +
+          '</td><td class="num">' + r.mem.toFixed(1) + '</td>';
+      return '<tr class="' + cls + '"><td>' + esc(r.name) + '</td>' + cells + '</tr>';
+    }).join('');
+    return '<div class="card" style="margin-bottom:16px"><h2>' + esc(c.title) + '</h2>' +
+      '<table><thead><tr>' + head + '</tr></thead><tbody>' + body + '</tbody></table>' +
+      '<div class="muted" style="margin-top:11px">' + md(c.note) + '</div></div>';
+  }).join('');
+
+  $('#extras').innerHTML = P.extras.map(function(e){
+    return '<div style="padding:10px 0;border-bottom:1px solid var(--line)">' +
+      '<div style="font-weight:600;font-size:14px;color:#376b45">✓ ' + esc(e.title) + '</div>' +
+      '<div class="muted" style="margin-top:4px">' + md(e.detail) + '</div></div>';
+  }).join('');
+
+  $('#devs').innerHTML = P.deviations.map(function(d){
+    return '<div style="padding:10px 0;border-bottom:1px solid var(--line)">' +
+      '<div style="font-weight:600;font-size:14px">' + d.id + '. ' + esc(d.text) + '</div>' +
+      '<div class="muted" style="margin-top:4px">' + md(d.detail) + '</div></div>';
+  }).join('');
+
+  $('#risks').innerHTML = P.risks.map(function(r){
+    return '<div class="risk"><span class="pill p-' + r.severity + '">' +
+      r.severity.toUpperCase() + '</span><div style="flex:1">' +
+      '<div style="font-weight:600">' + esc(r.text) + '</div>' +
+      '<div class="muted" style="margin-top:4px">现状：' + esc(r.status) +
+      '　|　预案：' + esc(r.plan) + '</div></div></div>';
+  }).join('');
+})();
+</script>
+</body>
+</html>
